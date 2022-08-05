@@ -1,7 +1,7 @@
 'reach 0.1';
 
 export const main = Reach.App(() => {
-  //setOptions({ untrustworthyMaps: true });
+  setOptions({ untrustworthyMaps: true });
 
   const [isOutcome, WINNER, STALEMATE, CONTINUE, TICKETS_FINISHED] = makeEnum(4);
 
@@ -10,8 +10,10 @@ export const main = Reach.App(() => {
     supplyWinningNumber: Fun([UInt], UInt),
     displayHash: Fun([Digest], Null),
     displayWinner: Fun([Address], Null),
+    displayWinnerBalance: Fun([Address], Null),
     informLackOfWinner: Fun([], Null),
     getRegInfo: Fun([Address, UInt], Null),
+    check: Fun([], Null),
     ...hasRandom,
   });
   const Bob = API('Bob', {
@@ -55,8 +57,7 @@ export const main = Reach.App(() => {
   const [ numOfDraws, outcome, addressToPay, numOfChecks ] = 
     parallelReduce([ 0, CONTINUE, Alice, 0 ])
       .invariant( balance(NFT) ==  1)
-      .invariant(submissions.size() == numOfDraws)
-      .while((numOfDraws < numberOfTickets) && ((outcome == CONTINUE) || (outcome == TICKETS_FINISHED)) && (numOfChecks < numberOfTickets))
+      .while((numOfDraws < numberOfTickets) || (numOfChecks < numberOfTickets) || (outcome == CONTINUE)) 
       .api_(Bob.subscribeToNFT, () => {
         check(this != Alice, "Not deployer");
 
@@ -100,20 +101,33 @@ export const main = Reach.App(() => {
         check(!contestants.member(this), "You have checked your status already");
 
         return [0, (resolve) => {
-          if (outcome != TICKETS_FINISHED) {
+          if (outcome == CONTINUE) {
             resolve([false, false]);
             return [numOfDraws, outcome, addressToPay, numOfChecks]
           }
           else {
+            contestants.insert(this);
 
-            if (submissions[this] == winningNumber) {
-              resolve([true, true]);
-              return [numOfDraws, WINNER, this, numOfChecks + 1];
-            }
-            else {
-              resolve([true, false]);
-              return [numOfDraws, TICKETS_FINISHED, addressToPay, numOfChecks + 1]
-            }
+            return submissions[this].match({
+              Some: (value) => {
+                if (outcome == WINNER) {      // There is a winner already
+                  resolve([true, false]);
+                  return [numOfDraws, WINNER, addressToPay, numOfChecks + 1];
+                }
+                else if (value == winningNumber) {
+                  resolve([true, true]);
+                  return [numOfDraws, WINNER, this, numOfChecks + 1];
+                }
+                else {
+                  resolve([true, false]);
+                  return [numOfDraws, TICKETS_FINISHED, addressToPay, numOfChecks + 1]
+                }
+              },
+              None: () => {
+                resolve([false, false]);
+                return [numOfDraws, TICKETS_FINISHED, addressToPay, numOfChecks]
+              }
+            })
           }
         }]
       })
@@ -131,6 +145,8 @@ export const main = Reach.App(() => {
   transfer(balance(NFT), NFT).to(addressToPay);
 
   transfer(balance()).to(Alice);
+
+  Alice.interact.displayWinnerBalance(addressToPay);
 
   commit();
 

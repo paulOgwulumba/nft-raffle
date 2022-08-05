@@ -10,6 +10,7 @@ const fmt = (x) => { return ( stdlib.formatCurrency(x, 6) * 1000000); }
 
 const acc  = await stdlib.newTestAccount(startingBalance);
 console.log('Hello, new user!');
+console.log('Your address is ', acc.getAddress())
 
 console.log('Launching...');
 
@@ -52,12 +53,19 @@ const main = async () => {
         console.log('The hash of the winning number is', hash);
       },
 
-      displayWinner: (address) => {
+      displayWinner: async (address) => {
         console.log('The contestant with address', address, 'has won this raffle draw.')
+        console.log('Their nft balance is ', fmt(await stdlib.balanceOf(address, nft.id)))
+      },
+
+      displayWinnerBalance: async (address) => {
+        console.log('The nft balance of the winner is ', fmt(await stdlib.balanceOf(address, nft.id)));
+        process.exit(1);
       },
 
       informLackOfWinner: () => {
         console.log('No contestant won this round!!!')
+        process.exit(1);
       },
 
       getRegInfo: (address, draw) => {
@@ -66,6 +74,12 @@ const main = async () => {
 
       inspect: (address, draw) => {
         console.log('Address:', address, '...Mapped to:', fmt(draw));
+      },
+
+      check: () => {
+        console.log("......");
+        console.log("We are here");
+        console.log(".....");
       }
     }
     
@@ -87,7 +101,7 @@ const main = async () => {
 
     console.log('Subscribing to NFT');
     const nftID = await ctc.apis.Bob.subscribeToNFT();
-    console.log('The nft id gotten from the backend is', nftID);
+    console.log('The nft id gotten from the backend is', fmt(nftID));
     await acc.tokenAccept(nftID);
     console.log('You have subscribed to the nft successfully.')
 
@@ -117,6 +131,7 @@ const main = async () => {
         }
 
         clearInterval((interval))
+        process.exit(1);
       }
     }, 5000)
   }
